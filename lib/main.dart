@@ -8,9 +8,7 @@ import 'package:stomp_dart_client/stomp_dart_client.dart';
 import 'package:telephony/telephony.dart';
 
 void main() {
-  runApp(ProviderScope(
-      child: MyApp()
-  ));
+  runApp(ProviderScope(child: MyApp()));
 }
 
 class MyApp extends StatefulWidget {
@@ -19,7 +17,9 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  late TextEditingController _controllerPeople, _controllerMessage, _controllerDomain;
+  late TextEditingController _controllerPeople,
+      _controllerMessage,
+      _controllerDomain;
   String? _message = "test", body;
   String _canSendSMSMessage = 'Check is not run.';
   List<String> people = [];
@@ -58,15 +58,11 @@ class _MyAppState extends State<MyApp> {
             final Map<String, dynamic> otpMessage = json.decode(frame.body!);
             final String otpSms = '${otpMessage['otp']} is your one-time '
                 'password to confirm your login.OTP is valid for 3 mins.';
-            telephony.sendSms(
-                to: otpMessage['phoneNumber']!,
-                message: otpSms
-            );
+            telephony.sendSms(to: otpMessage['phoneNumber']!, message: otpSms);
 
             print('message sent to ${frame.body}');
           }
-        }
-    );
+        });
   }
 
   Widget _phoneTile(String name) {
@@ -75,11 +71,11 @@ class _MyAppState extends State<MyApp> {
       child: Container(
           decoration: BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: Colors.grey.shade300),
-                top: BorderSide(color: Colors.grey.shade300),
-                left: BorderSide(color: Colors.grey.shade300),
-                right: BorderSide(color: Colors.grey.shade300),
-              )),
+            bottom: BorderSide(color: Colors.grey.shade300),
+            top: BorderSide(color: Colors.grey.shade300),
+            left: BorderSide(color: Colors.grey.shade300),
+            right: BorderSide(color: Colors.grey.shade300),
+          )),
           child: Padding(
             padding: const EdgeInsets.all(4),
             child: Column(
@@ -135,7 +131,7 @@ class _MyAppState extends State<MyApp> {
               title: TextField(
                 controller: _controllerPeople,
                 decoration:
-                const InputDecoration(labelText: 'Add Phone Number'),
+                    const InputDecoration(labelText: 'Add Phone Number'),
                 keyboardType: TextInputType.number,
                 onChanged: (String value) => setState(() {}),
               ),
@@ -143,11 +139,10 @@ class _MyAppState extends State<MyApp> {
                 icon: const Icon(Icons.add),
                 onPressed: _controllerPeople.text.isEmpty
                     ? null
-                    : () =>
-                    setState(() {
-                      people.add(_controllerPeople.text.toString());
-                      _controllerPeople.clear();
-                    }),
+                    : () => setState(() {
+                          people.add(_controllerPeople.text.toString());
+                          _controllerPeople.clear();
+                        }),
               ),
             ),
             const Divider(),
@@ -167,8 +162,13 @@ class _MyAppState extends State<MyApp> {
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 icon: const Icon(Icons.check),
                 onPressed: () async {
-                  bool? permissionsGranted = await telephony
-                      .requestPhoneAndSmsPermissions;
+                  bool? permissionsGranted =
+                      await telephony.requestSmsPermissions;
+
+                  setState(() {
+                    _message =
+                        "----\n is granted: $permissionsGranted; \n $_message";
+                  });
                 },
               ),
             ),
@@ -187,28 +187,24 @@ class _MyAppState extends State<MyApp> {
               child: ElevatedButton(
                 style: ButtonStyle(
                   backgroundColor: MaterialStateProperty.resolveWith(
-                          (states) =>
-                      Theme
-                          .of(context)
-                          .colorScheme
-                          .secondary),
+                      (states) => Theme.of(context).colorScheme.secondary),
                   padding: MaterialStateProperty.resolveWith(
-                          (states) => const EdgeInsets.symmetric(vertical: 16)),
+                      (states) => const EdgeInsets.symmetric(vertical: 16)),
                 ),
-                onPressed: () {
-
-
-                  // telephony.sendSms(
-                  //     to: people.first,
-                  //     message: _message ?? 'No Data'
-                  // );
+                onPressed: () async {
+                  try {
+                    await telephony.sendSms(
+                        to: people.first, message: 'No Data');
+                  } catch(e) {
+                    _message = "----\n error; $e \n $_message";
+                  }
+                  setState(() {
+                    _message = "----\n sent msg; \n $_message";
+                  });
                 },
                 child: Text(
                   'SEND',
-                  style: Theme
-                      .of(context)
-                      .textTheme
-                      .displayMedium,
+                  style: Theme.of(context).textTheme.displayMedium,
                 ),
               ),
             ),
@@ -216,8 +212,7 @@ class _MyAppState extends State<MyApp> {
               leading: const Icon(Icons.people),
               title: TextField(
                 controller: _controllerDomain,
-                decoration:
-                const InputDecoration(labelText: 'IP and Port'),
+                decoration: const InputDecoration(labelText: 'IP and Port'),
                 keyboardType: TextInputType.number,
                 onChanged: (String value) => setState(() {}),
               ),
@@ -225,11 +220,14 @@ class _MyAppState extends State<MyApp> {
                 icon: const Icon(Icons.add),
                 onPressed: _controllerDomain.text.isEmpty
                     ? null
-                    : () =>
-                    setState(() {
-                      domain = _controllerDomain.text.toString();
-                      // _controllerDomain.clear();
-                    }),
+                    : () => setState(() {
+                          domain = _controllerDomain.text.toString();
+                          setState(() {
+                            _message =
+                                "----\n domain set: ${_controllerDomain.text.toString()}  \n $_message";
+                          });
+                          // _controllerDomain.clear();
+                        }),
               ),
             ),
             Padding(
@@ -237,48 +235,38 @@ class _MyAppState extends State<MyApp> {
               child: ElevatedButton(
                 style: ButtonStyle(
                   backgroundColor: MaterialStateProperty.resolveWith(
-                          (states) =>
-                      Theme
-                          .of(context)
-                          .colorScheme
-                          .secondary),
+                      (states) => Theme.of(context).colorScheme.secondary),
                   padding: MaterialStateProperty.resolveWith(
-                          (states) => const EdgeInsets.symmetric(vertical: 16)),
+                      (states) => const EdgeInsets.symmetric(vertical: 16)),
                 ),
                 onPressed: () {
-
                   final Telephony telephony = Telephony.instance;
 
                   // StompConfig.sockJS(url: 'http://10.0.2.2:8080/websocket')
                   client = StompClient(
                       config: StompConfig.sockJS(
-                        // url: 'http://192.168.1.6:8080/websocket',
-                        // url: 'http://10.0.0.2:8080/websocket',
-                        url: 'http://$domain/websocket',
-                        onWebSocketError: (dynamic error) {
-                          setState(() {
-
-                            _message =  "----\n error: $error; \n ${_message};";
-
-                          });
-                        },
-                        onConnect: (stompFrame) {
-                          print("connecting to websocket server");
-                          setState(() {
-
-                            _message =  "----\n connected to websocket server; \n ${_message};";
-
-                          });
-                          onConnect(stompFrame, telephony);
-                        },
-                        // webSocketConnectHeaders: {
-                        //     "connection": "Upgrade",
-                        //   "upgrade": "websocket",
-                        //   "Sec-WebSocket-Version": "13"
-                        // }
-                      )
-
-                  );
+                    // url: 'http://192.168.1.6:8080/websocket',
+                    // url: 'http://10.0.0.2:8080/websocket',
+                    url: 'http://$domain/websocket',
+                    onWebSocketError: (dynamic error) {
+                      setState(() {
+                        _message = "----\n error: $error; \n ${_message};";
+                      });
+                    },
+                    onConnect: (stompFrame) {
+                      print("connecting to websocket server");
+                      setState(() {
+                        _message =
+                            "----\n connected to websocket server; \n ${_message};";
+                      });
+                      onConnect(stompFrame, telephony);
+                    },
+                    // webSocketConnectHeaders: {
+                    //     "connection": "Upgrade",
+                    //   "upgrade": "websocket",
+                    //   "Sec-WebSocket-Version": "13"
+                    // }
+                  ));
                   client.activate();
 
                   // telephony.sendSms(
@@ -288,10 +276,7 @@ class _MyAppState extends State<MyApp> {
                 },
                 child: Text(
                   'CONNECT WS',
-                  style: Theme
-                      .of(context)
-                      .textTheme
-                      .displayMedium,
+                  style: Theme.of(context).textTheme.displayMedium,
                 ),
               ),
             ),
@@ -300,23 +285,16 @@ class _MyAppState extends State<MyApp> {
               child: ElevatedButton(
                 style: ButtonStyle(
                   backgroundColor: MaterialStateProperty.resolveWith(
-                          (states) =>
-                      Theme
-                          .of(context)
-                          .colorScheme
-                          .secondary),
+                      (states) => Theme.of(context).colorScheme.secondary),
                   padding: MaterialStateProperty.resolveWith(
-                          (states) => const EdgeInsets.symmetric(vertical: 16)),
+                      (states) => const EdgeInsets.symmetric(vertical: 16)),
                 ),
                 onPressed: () {
                   client.deactivate();
                 },
                 child: Text(
                   'Deactivate ws',
-                  style: Theme
-                      .of(context)
-                      .textTheme
-                      .displayMedium,
+                  style: Theme.of(context).textTheme.displayMedium,
                 ),
               ),
             ),

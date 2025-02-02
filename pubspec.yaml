@@ -31,7 +31,10 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^2.6.1
-  telephony: any
+  telephony:
+    git:
+      url: https://github.com/suhardik/s_telephony.git
+      ref: develop
   stomp_dart_client: ^2.1.1
 
 
