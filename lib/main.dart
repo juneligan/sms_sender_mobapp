@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,12 +18,14 @@ class _MyAppState extends State<MyApp> {
   late TextEditingController _controllerPeople,
       _controllerMessage,
       _controllerDomain;
-  String? _message = "test", body;
+  String? _message = "test",
+      body;
   String _canSendSMSMessage = 'Check is not run.';
   List<String> people = [];
   String? domain;
   bool sendDirect = false;
   late StompClient client;
+  late StompClient clientSmsSender;
 
   @override
   void initState() {
@@ -42,27 +42,110 @@ class _MyAppState extends State<MyApp> {
   @override
   void dispose() {
     client.deactivate();
+    clientSmsSender.deactivate();
     super.dispose();
   }
 
   void onConnect(StompFrame frame, Telephony telephony) {
+    subscribeStompClient(client, telephony, '/otp', 'otp', (otpValues) {
+      return '$otpValues is your one-time password to confirm your login.OTP is'
+          'valid for 3 mins.';
+    });
+    subscribeStompClient(clientSmsSender, telephony, '/sms', 'message', (msg) {
+      return msg;
+    });
+    // client.subscribe(
+    //     destination: '/otp',
+    //     callback: (StompFrame frame) {
+    //       if (frame.body != null) {
+    //         print('message received : ${frame.body}');
+    //
+    //         setState(() {
+    //           _message = "----\n received msg: ${frame.body}; \n $_message";
+    //         });
+    //         final Map<String, dynamic> otpMessage = json.decode(frame.body!);
+    //         final String otpSms = '${otpMessage['otp']} is your one-time '
+    //             'password to confirm your login.OTP is valid for 3 mins.';
+    //         telephony.sendSms(to: otpMessage['phoneNumber']!, message: otpSms);
+    //
+    //         print('message sent to ${frame.body}');
+    //       }
+    //     });
+    // clientSmsSender.subscribe(
+    //     destination: '/sms',
+    //     callback: (StompFrame frame) {
+    //       if (frame.body != null) {
+    //         print('message received : ${frame.body}');
+    //
+    //         setState(() {
+    //           _message = "----\n received msg: ${frame.body}; \n $_message";
+    //         });
+    //         final Map<String, dynamic> smsRequest = json.decode(frame.body!);
+    //         telephony.sendSms(
+    //             to: smsRequest['phoneNumber']!,
+    //             message: smsRequest['message']
+    //         );
+    //
+    //         print('message sent to ${frame.body}');
+    //       }
+    //     });
+  }
+
+  void subscribeStompClient(StompClient client,
+      Telephony telephony,
+      String wsPath,
+      String msgKey,
+      Function(String msg) getMessageAction) {
     client.subscribe(
-        destination: '/otp',
+        destination: wsPath,
         callback: (StompFrame frame) {
           if (frame.body != null) {
-            print('message received : ${frame.body}');
+            print('wsMessage received : ${frame.body}');
 
             setState(() {
               _message = "----\n received msg: ${frame.body}; \n $_message";
             });
-            final Map<String, dynamic> otpMessage = json.decode(frame.body!);
-            final String otpSms = '${otpMessage['otp']} is your one-time '
-                'password to confirm your login.OTP is valid for 3 mins.';
-            telephony.sendSms(to: otpMessage['phoneNumber']!, message: otpSms);
+            final Map<String, dynamic> wsMessage = json.decode(frame.body!);
+            String? phoneNumber = wsMessage['phoneNumber'];
+            String? msg = getMessageAction(wsMessage[msgKey]);
+            if (phoneNumber == null) {
+              setState(() {
+                _message =
+                "----\n empty phone number: ${frame.body}; \n $_message";
+              });
+              return;
+            } else if (msg == null) {
+              setState(() {
+                _message =
+                "----\n empty msg: ${frame.body}; \n $_message";
+              });
+              return;
+            }
 
-            print('message sent to ${frame.body}');
+            telephony.sendSms(to: wsMessage['phoneNumber']!, message: msg);
+            print('wsMessage sent to ${frame.body}');
           }
         });
+  }
+
+  StompClient instantiateStompClient(Telephony telephony) {
+    return StompClient(
+        config: StompConfig.sockJS(
+          url: 'http://$domain/websocket',
+          onWebSocketError: (dynamic error) {
+            setState(() {
+              _message = "----\n error: $error; \n ${_message};";
+            });
+          },
+          onConnect: (stompFrame) {
+            print("connecting to websocket server");
+            setState(() {
+              _message =
+              "----\n connected to websocket server; \n ${_message};";
+            });
+            onConnect(stompFrame, telephony);
+          },
+        ));
   }
 
   Widget _phoneTile(String name) {
@@ -71,11 +154,11 @@ class _MyAppState extends State<MyApp> {
       child: Container(
           decoration: BoxDecoration(
               border: Border(
-            bottom: BorderSide(color: Colors.grey.shade300),
-            top: BorderSide(color: Colors.grey.shade300),
-            left: BorderSide(color: Colors.grey.shade300),
-            right: BorderSide(color: Colors.grey.shade300),
-          )),
+                bottom: BorderSide(color: Colors.grey.shade300),
+                top: BorderSide(color: Colors.grey.shade300),
+                left: BorderSide(color: Colors.grey.shade300),
+                right: BorderSide(color: Colors.grey.shade300),
+              )),
           child: Padding(
             padding: const EdgeInsets.all(4),
             child: Column(
@@ -131,7 +214,7 @@ class _MyAppState extends State<MyApp> {
               title: TextField(
                 controller: _controllerPeople,
                 decoration:
-                    const InputDecoration(labelText: 'Add Phone Number'),
+                const InputDecoration(labelText: 'Add Phone Number'),
                 keyboardType: TextInputType.number,
                 onChanged: (String value) => setState(() {}),
               ),
@@ -139,10 +222,11 @@ class _MyAppState extends State<MyApp> {
                 icon: const Icon(Icons.add),
                 onPressed: _controllerPeople.text.isEmpty
                     ? null
-                    : () => setState(() {
-                          people.add(_controllerPeople.text.toString());
-                          _controllerPeople.clear();
-                        }),
+                    : () =>
+                    setState(() {
+                      people.add(_controllerPeople.text.toString());
+                      _controllerPeople.clear();
+                    }),
               ),
             ),
             const Divider(),
@@ -163,11 +247,11 @@ class _MyAppState extends State<MyApp> {
                 icon: const Icon(Icons.check),
                 onPressed: () async {
                   bool? permissionsGranted =
-                      await telephony.requestSmsPermissions;
+                  await telephony.requestSmsPermissions;
 
                   setState(() {
                     _message =
-                        "----\n is granted: $permissionsGranted; \n $_message";
+                    "----\n is granted: $permissionsGranted; \n $_message";
                   });
                 },
               ),
@@ -187,15 +271,19 @@ class _MyAppState extends State<MyApp> {
               child: ElevatedButton(
                 style: ButtonStyle(
                   backgroundColor: MaterialStateProperty.resolveWith(
-                      (states) => Theme.of(context).colorScheme.secondary),
+                          (states) =>
+                      Theme
+                          .of(context)
+                          .colorScheme
+                          .secondary),
                   padding: MaterialStateProperty.resolveWith(
-                      (states) => const EdgeInsets.symmetric(vertical: 16)),
+                          (states) => const EdgeInsets.symmetric(vertical: 16)),
                 ),
                 onPressed: () async {
                   try {
                     await telephony.sendSms(
                         to: people.first, message: 'No Data');
-                  } catch(e) {
+                  } catch (e) {
                     _message = "----\n error; $e \n $_message";
                   }
                   setState(() {
@@ -204,7 +292,10 @@ class _MyAppState extends State<MyApp> {
                 },
                 child: Text(
                   'SEND',
-                  style: Theme.of(context).textTheme.displayMedium,
+                  style: Theme
+                      .of(context)
+                      .textTheme
+                      .displayMedium,
                 ),
               ),
             ),
@@ -220,14 +311,16 @@ class _MyAppState extends State<MyApp> {
                 icon: const Icon(Icons.add),
                 onPressed: _controllerDomain.text.isEmpty
                     ? null
-                    : () => setState(() {
-                          domain = _controllerDomain.text.toString();
-                          setState(() {
-                            _message =
-                                "----\n domain set: ${_controllerDomain.text.toString()}  \n $_message";
-                          });
-                          // _controllerDomain.clear();
-                        }),
+                    : () =>
+                    setState(() {
+                      domain = _controllerDomain.text.toString();
+                      setState(() {
+                        _message =
+                        "----\n domain set: ${_controllerDomain.text
+                            .toString()}  \n $_message";
+                      });
+                      // _controllerDomain.clear();
+                    }),
               ),
             ),
             Padding(
@@ -235,39 +328,21 @@ class _MyAppState extends State<MyApp> {
               child: ElevatedButton(
                 style: ButtonStyle(
                   backgroundColor: MaterialStateProperty.resolveWith(
-                      (states) => Theme.of(context).colorScheme.secondary),
+                          (states) =>
+                      Theme
+                          .of(context)
+                          .colorScheme
+                          .secondary),
                   padding: MaterialStateProperty.resolveWith(
-                      (states) => const EdgeInsets.symmetric(vertical: 16)),
+                          (states) => const EdgeInsets.symmetric(vertical: 16)),
                 ),
                 onPressed: () {
                   final Telephony telephony = Telephony.instance;
 
-                  // StompConfig.sockJS(url: 'http://10.0.2.2:8080/websocket')
-                  client = StompClient(
-                      config: StompConfig.sockJS(
-                    // url: 'http://192.168.1.6:8080/websocket',
-                    // url: 'http://10.0.0.2:8080/websocket',
-                    url: 'http://$domain/websocket',
-                    onWebSocketError: (dynamic error) {
-                      setState(() {
-                        _message = "----\n error: $error; \n ${_message};";
-                      });
-                    },
-                    onConnect: (stompFrame) {
-                      print("connecting to websocket server");
-                      setState(() {
-                        _message =
-                            "----\n connected to websocket server; \n ${_message};";
-                      });
-                      onConnect(stompFrame, telephony);
-                    },
-                    // webSocketConnectHeaders: {
-                    //     "connection": "Upgrade",
-                    //   "upgrade": "websocket",
-                    //   "Sec-WebSocket-Version": "13"
-                    // }
-                  ));
+                  client = instantiateStompClient(telephony);
                   client.activate();
+                  clientSmsSender = instantiateStompClient(telephony);
+                  clientSmsSender.activate();
 
                   // telephony.sendSms(
                   //     to: people.first,
@@ -276,7 +351,10 @@ class _MyAppState extends State<MyApp> {
                 },
                 child: Text(
                   'CONNECT WS',
-                  style: Theme.of(context).textTheme.displayMedium,
+                  style: Theme
+                      .of(context)
+                      .textTheme
+                      .displayMedium,
                 ),
               ),
             ),
@@ -285,16 +363,24 @@ class _MyAppState extends State<MyApp> {
               child: ElevatedButton(
                 style: ButtonStyle(
                   backgroundColor: MaterialStateProperty.resolveWith(
-                      (states) => Theme.of(context).colorScheme.secondary),
+                          (states) =>
+                      Theme
+                          .of(context)
+                          .colorScheme
+                          .secondary),
                   padding: MaterialStateProperty.resolveWith(
-                      (states) => const EdgeInsets.symmetric(vertical: 16)),
+                          (states) => const EdgeInsets.symmetric(vertical: 16)),
                 ),
                 onPressed: () {
                   client.deactivate();
+                  clientSmsSender.deactivate();
                 },
                 child: Text(
                   'Deactivate ws',
-                  style: Theme.of(context).textTheme.displayMedium,
+                  style: Theme
+                      .of(context)
+                      .textTheme
+                      .displayMedium,
                 ),
               ),
             ),
