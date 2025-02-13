@@ -25,7 +25,7 @@ class _MyAppState extends State<MyApp> {
   String? domain;
   bool sendDirect = false;
   late StompClient client;
-  late StompClient clientSmsSender;
+  // late StompClient clientSmsSender;
 
   @override
   void initState() {
@@ -42,7 +42,7 @@ class _MyAppState extends State<MyApp> {
   @override
   void dispose() {
     client.deactivate();
-    clientSmsSender.deactivate();
+    // clientSmsSender.deactivate();
     super.dispose();
   }
 
@@ -51,7 +51,7 @@ class _MyAppState extends State<MyApp> {
       return '$otpValues is your one-time password to confirm your login.OTP is'
           'valid for 3 mins.';
     });
-    subscribeStompClient(clientSmsSender, telephony, '/sms', 'message', (msg) {
+    subscribeStompClient(client, telephony, '/sms', 'message', (msg) {
       return msg;
     });
     // client.subscribe(
@@ -341,8 +341,8 @@ class _MyAppState extends State<MyApp> {
 
                   client = instantiateStompClient(telephony);
                   client.activate();
-                  clientSmsSender = instantiateStompClient(telephony);
-                  clientSmsSender.activate();
+                  // clientSmsSender = instantiateStompClient(telephony);
+                  // clientSmsSender.activate();
 
                   // telephony.sendSms(
                   //     to: people.first,
@@ -373,7 +373,7 @@ class _MyAppState extends State<MyApp> {
                 ),
                 onPressed: () {
                   client.deactivate();
-                  clientSmsSender.deactivate();
+                  // clientSmsSender.deactivate();
                 },
                 child: Text(
                   'Deactivate ws',
